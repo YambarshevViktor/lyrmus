@@ -8,7 +8,7 @@
 - `index.html` — разметка + JS (стили подключены из `styles.css`).
 - `styles.css` — все стили отдельно.
 - `functions/api/ytsearch.js` — Pages Function: прокси поиска YouTube (`/api/ytsearch?q=` на том же домене). Отдельный Worker и `server.py` не нужны.
-- `functions/api/translate.js` — Pages Function: машинный перевод строк (POST `{sl,tl,q[]}` → `{tr[]}`, Google gtx, без ключа).
+- `functions/api/translate.js` — Pages Function: машинный перевод строк (POST `{sl,tl,q[]}` → `{tr[], failed}`, MyMemory, без ключа; Google gtx не подошёл — 429 автоматическим запросам, проверено 30.10.2026). Анонимно 5000 символов/день; email в env `MYMEMORY_EMAIL` (параметр `de`) поднимает до 50000.
 
 ## Запуск и выкладка
 - Локально: любой статический сервер, например `python3 -m http.server` в папке, открыть `http://127.0.0.1:8000`. Через `file://` не работает (YouTube IFrame API требует http).
@@ -32,7 +32,7 @@
 - rAF-цикл читает `player.getCurrentTime()+offset` → `updateActive`. Клик по строке = `seekTo`. Сдвиг ±0.5с кнопками.
 - Дефолт — построчный режим (`body data-mode="lines"`), тогл «Строки / Слова».
 - При PLAYING оба списка выбора скрыты, при PAUSED/ENDED показываются обратно.
-- Перевод: если в тексте >70% латиницы — страница шлёт строки в `/api/translate` (машинный Google, без ключа), перевод появляется под строкой мелким серым (`.line .tr`, 15px). Кэш переводов — `trCache` по id версии текста. Русское не переводим.
+- Перевод: если в тексте >70% латиницы — страница шлёт строки в `/api/translate` (MyMemory, без ключа; язык источника угадывает `guessLang`: кана→ja, хангыль→ko, иероглифы→zh-CN, иначе en), перевод появляется под строкой мелким серым (`.line .tr`, 15px). Кэш переводов — `trCache` по id версии текста. Русское не переводим. Статус виден в `syncLabel` (`syncBase` + ` • перевожу… / перевод готов / без перевода (причина)`).
 
 ## Стиль (решения пользователя, не менять молча)
 - Шрифт везде Inter (Google Fonts `<link>` + системный фолбэк; `input,button{font-family:inherit}`).

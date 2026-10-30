@@ -377,6 +377,7 @@ function renderVideoPicker(){
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 const trCache=new Map(); // ключ: id версии текста → массив переводов
+let syncBase='';
 function lineText(ln){ return ln.words.map(w=>w.w).join(' '); }
 function needsTranslation(){
   const text=lines.map(lineText).join('\n');
@@ -385,22 +386,40 @@ function needsTranslation(){
   const lat=(text.match(/[a-zA-Z]/g)||[]).length;
   return lat/letters.length>0.7; // переводим только явно не-русское
 }
-async function translateLines(key, myLines){
+function guessLang(){ // MyMemory требует явный язык источника
+  const text=lines.map(lineText).join('\n');
+  if(/[\u3040-\u30ff]/.test(text)) return 'ja';
+  if(/[\uac00-\ud7af]/.test(text)) return 'ko';
+  if(/[\u4e00-\u9fff]/.test(text)) return 'zh-CN';
+  return 'en';
+}
+function paintTr(){
+  lines.forEach((ln,i)=>{
+    const div=lyricsEl.querySelector('.line[data-i="'+i+'"]');
+    if(!div||!ln.tr||div.querySelector('.tr')) return;
+    const d=document.createElement('div'); d.className='tr'; d.textContent=ln.tr; div.appendChild(d);
+  });
+}
+async function translateLines(key, myLines, sl){
+  syncLabel.textContent=syncBase+' • перевожу…';
+  let note=' • перевод готов';
   try{
     const r=await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sl:'auto',tl:'ru',q:myLines.map(lineText)}),signal:AbortSignal.timeout(60000)});
-    if(!r.ok) return;
-    const j=await r.json();
-    if(!j.tr||!Array.isArray(j.tr)) return;
-    trCache.set(key, j.tr);
-    if(lines!==myLines) return; // пока переводилось, текст уже сменили
-    j.tr.forEach((t,i)=>{ if(lines[i]) lines[i].tr=(t&&String(t).trim())||null; });
-    lines.forEach((ln,i)=>{
-      const div=lyricsEl.querySelector('.line[data-i="'+i+'"]');
-      if(!div||!ln.tr||div.querySelector('.tr')) return;
-      const d=document.createElement('div'); d.className='tr'; d.textContent=ln.tr; div.appendChild(d);
-    });
-  }catch(e){ /* без перевода страница работает как раньше */ }
+      body:JSON.stringify({sl:sl,tl:'ru',q:myLines.map(lineText)}),signal:AbortSignal.timeout(60000)});
+    if(!r.ok) note=' • без перевода (ошибка '+r.status+')';
+    else{
+      const j=await r.json();
+      if(!j.tr||!Array.isArray(j.tr)) note=' • без перевода (пустой ответ)';
+      else{
+        trCache.set(key, j.tr);
+        if(lines!==myLines) return; // пока переводилось, текст уже сменили
+        j.tr.forEach((t,i)=>{ if(lines[i]) lines[i].tr=(t&&String(t).trim())||null; });
+        paintTr();
+        if(j.failed>0&&!lines.some(l=>l.tr)) note=' • без перевода (сервис перегружен)';
+      }
+    }
+  }catch(e){ note=' • без перевода (сеть)'; }
+  if(lines===myLines) syncLabel.textContent=syncBase+note;
 }
 function applyLyric(d){
   lines=parseLRC(d.syncedLyrics);
@@ -408,12 +427,17 @@ function applyLyric(d){
   selLyricId=d.id;
   titleEl.textContent=d.trackName||'';
   artistEl.textContent=d.artistName||'';
-  syncLabel.textContent='синхронизация: '+(enhancedMode?'честная пословная':'строки + авто-интерполяция');
+  syncBase='синхронизация: '+(enhancedMode?'честная пословная':'строки + авто-интерполяция');
+  syncLabel.textContent=syncBase;
   if(d.instrumental) msgEl.innerHTML='<div class="err">Это инструментал — текста нет.</div>';
   const key=(d.id||'')+':'+lines.length;
-  if(trCache.has(key)){ const arr=trCache.get(key); arr.forEach((t,i)=>{ if(lines[i]) lines[i].tr=t||null; }); }
+  if(trCache.has(key)){
+    const arr=trCache.get(key); arr.forEach((t,i)=>{ if(lines[i]) lines[i].tr=t||null; });
+    paintTr();
+    if(arr.some(t=>t)) syncLabel.textContent=syncBase+' • перевод готов';
+  }
   renderLyrics(); paintPicks();
-  if(!trCache.has(key)&&needsTranslation()) translateLines(key, lines);
+  if(!trCache.has(key)&&needsTranslation()) translateLines(key, lines, guessLang());
 }
 function renderLyricPicker(query){
   const box=$('lyricsList'); box.innerHTML='';
