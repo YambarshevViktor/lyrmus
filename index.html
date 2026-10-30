@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Тексты песен — в такт музыке</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171b22; --line:#232936;
+    --text:#f2f4f8; --dim:#9aa3b2; --accent:#22c55e; --accent2:#a3e635;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  input,button{font-family:inherit}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 16px 16px;height:100vh;height:100dvh;display:flex;flex-direction:column}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:14px;margin-bottom:16px}
+  .search{display:flex;gap:8px;margin:12px 0 20px}
+  .search input{flex:1;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:16px;outline:none}
+  .search input:focus{border-color:var(--accent)}
+  button{cursor:pointer;border:0;border-radius:12px;padding:12px 16px;font-size:15px;font-weight:600;background:var(--accent);color:#06130b}
+  button.ghost{background:#222a36;color:var(--text);font-weight:500}
+  button.small{padding:8px 10px;font-size:13px;border-radius:10px}
+  button:disabled{opacity:.5;cursor:default}
+  .card{background:none;border:0;border-radius:0;padding:0;flex:1;min-height:0;display:flex;flex-direction:column}
+  .track{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+  #playerBox{width:320px;max-width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;flex-shrink:0;border:1px solid var(--line)}
+  #playerBox iframe{width:100%;height:100%;display:block}
+  .meta{flex:1;min-width:220px}
+  .meta h2{margin:2px 0 4px;font-size:20px}
+  .meta p{margin:0 0 10px;color:var(--dim)}
+  .hintbar{font-size:16px;color:var(--dim);text-align:center;min-height:20px;margin:22px 0 6px}
+  .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .progress{height:8px;background:#222a36;border-radius:99px;overflow:hidden;margin-top:12px;cursor:pointer}
+  .progress > div{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .time{font-size:12px;color:var(--dim);margin-top:6px}
+  .lyrics{margin-top:8px;display:flex;flex-direction:column;gap:32px;flex:1;min-height:120px;overflow:auto;padding:8px 4px 30vh;scroll-behavior:smooth;scroll-padding-top:140px;-webkit-mask-image:linear-gradient(to bottom,transparent,#000 10%,#000 62%,transparent);mask-image:linear-gradient(to bottom,transparent,#000 10%,#000 62%,transparent)}
+  .line{padding:2px 12px;border-radius:12px;color:#8e96a3;font-size:32px;line-height:1.0;font-weight:700;cursor:pointer;border:1px solid transparent}
+  .line:hover{background:#1d232e}
+  .line.active{background:none;border-color:transparent;color:#fff;font-size:38px}
+  .line.active:hover{background:none}
+  .line.done{color:rgba(142,150,163,.38)}
+  #videoList,#lyricsList{max-height:24vh;overflow:auto}
+  .w{position:relative;display:inline-block;padding-right:.28em}
+  .line.active .w{color:#c9d1dc}
+  .line.active .w.sung{color:var(--accent2)}
+  body[data-mode="lines"] .w{color:inherit !important}
+  .err{background:#2a1518;border:1px solid #5b232a;color:#ffc9c9;padding:12px;border-radius:12px;margin-top:12px}
+  .sub a{color:var(--text);text-decoration:underline;text-underline-offset:2px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .pill{font-size:12px;background:#222a36;border-radius:99px;padding:4px 10px;color:var(--dim)}
+  .picktitle{margin:14px 0 6px;font-size:14px;color:var(--dim)}
+  .pick{display:flex;flex-direction:column;gap:6px}
+  .opt{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:12px;cursor:pointer;background:#141922;text-align:left;width:100%;color:var(--text);font-weight:400}
+  .opt:hover{border-color:var(--accent)}
+  .opt.sel{border-color:var(--accent);background:#16241b}
+  .opt img{width:112px;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:#000;flex-shrink:0}
+  .opt .t{font-size:14px}
+  .opt .c{font-size:12px;color:var(--dim);margin-top:2px}
+  .opt.junk{opacity:.55}
+  .opt .badges{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+  .badge{font-size:11px;background:#222a36;border-radius:99px;padding:2px 8px;color:var(--accent2)}
+  .badge.warn{color:#f0b429}
+  .note{font-size:13px;color:#f0b429;margin:6px 0}
+</style>
+</head>
+<body data-mode="lines">
+<div class="wrap">
+  <h1>Тексты песен</h1>
+  <div class="sub">Тексты — <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a>,
+  музыка — <a href="https://www.youtube.com" target="_blank" rel="noopener">YouTube</a>.
+  Мы ничего не скачиваем и не храним.</div>
+
+  <div class="search">
+    <input id="q" type="text" placeholder="Название песни или ссылка YouTube" autocomplete="off">
+    <button id="go">Найти</button>
+  </div>
+
+  <div class="card">
+    <div class="track">
+      <div id="playerBox"><div id="player"></div></div>
+      <div class="meta">
+        <h2 id="title">Ничего не выбрано</h2>
+        <p id="artist">вбей песню выше и нажми «Найти»</p>
+        <div class="row">
+          <span class="pill" id="modeLabel">режим: строки</span>
+          <span class="pill" id="syncLabel">синхронизация: —</span>
+        </div>
+        <div class="controls">
+          <button class="ghost small" id="playBtn" disabled>▶ / ⏸</button>
+          <button class="ghost small" id="minusBtn" disabled>−0.5с</button>
+          <button class="ghost small" id="plusBtn" disabled>+0.5с</button>
+          <button class="ghost small" id="modeBtn" disabled>Строки / Слова</button>
+        </div>
+        <div class="progress" id="bar"><div id="fill"></div></div>
+        <div class="time" id="time">00:00 / 00:00 • сдвиг 0.0с</div>
+      </div>
+    </div>
+
+    <div id="msg"></div>
+    <div id="videoPick" hidden>
+      <div class="picktitle">Видео — подходящие версии (каверы, разговорные и сборки скрыты)</div>
+      <div id="videoList" class="pick"></div>
+    </div>
+    <div id="lyricsPick" hidden>
+      <div class="picktitle">Текст — выбери вариант</div>
+      <div id="lyricsList" class="pick"></div>
+    </div>
+    <div class="hintbar" id="hintbar">Здесь появится текст с подсветкой.<br>Каждая строка кликабельна — клик перематывает песню.</div>
+    <div class="lyrics" id="lyrics"></div>
+  </div>
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+const $ = id => document.getElementById(id);
+const qInput=$('q'), goBtn=$('go'), statusEl=$('hintbar'), msgEl=$('msg'),
+      lyricsEl=$('lyrics'), titleEl=$('title'), artistEl=$('artist'),
+      playBtn=$('playBtn'), minusBtn=$('minusBtn'), plusBtn=$('plusBtn'), modeBtn=$('modeBtn'),
+      bar=$('bar'), fill=$('fill'), timeEl=$('time'),
+      modeLabel=$('modeLabel'), syncLabel=$('syncLabel');
+
+let player=null, playerReady=false, rafId=null;
+let lines=[];
+let candidates=[];
+let currentVideo=null, duration=0, offset=0, activeIdx=-1, enhancedMode=false;
+
+function setStatus(s){ statusEl.textContent=s; }
+function fmt(s){ s=Math.max(0,Math.floor(s||0)); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+if(location.protocol==='file:'){
+  msgEl.innerHTML='<div class="err">Страница открыта как файл — так видео работать не будет. Открой её через любой локальный сервер (например <b>python3 -m http.server</b> в папке страницы) или выложи на GitHub Pages.</div>';
+}
+
+function onYouTubeIframeAPIReady(){ playerReady=true; }
+function errText(code){
+  return {2:'ошибка параметров',5:'ошибка HTML5-плеера',100:'видео не найдено или скрыто',101:'владелец запретил встраивание',150:'владелец запретил встраивание'}[code]||('ошибка '+code);
+}
+function ensureApi(){
+  return new Promise((res,rej)=>{
+    if(playerReady&&window.YT) return res();
+    const t0=Date.now();
+    const t=setInterval(()=>{
+      if(playerReady&&window.YT){ clearInterval(t); res(); }
+      else if(Date.now()-t0>15000){ clearInterval(t); rej(new Error('YouTube API не загрузился — проверь блокировщики рекламы и соединение')); }
+    },200);
+  });
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function createPlayer(videoId){
+  return ensureApi().then(()=>new Promise(resolve=>{
+    try{
+      if(player&&player.destroy){ try{player.destroy();}catch(e){} player=null; }
+      // ВАЖНО: пересоздаём узел плеера целиком — чинить innerHTML у iframe бесполезно
+      document.getElementById('playerBox').innerHTML='<div id="player"></div>';
+      let settled=false;
+      let failCode=null;
+      const done=v=>{ if(!settled){ settled=true; resolve(v); } };
+      player=new YT.Player('player',{videoId,width:'100%',height:'100%',
+        playerVars:{rel:0,playsinline:1},
+        events:{
+          onReady:ev=>{
+            try{ duration=ev.target.getDuration()||0; }catch(e){}
+            enableControls(true); loop();
+            // встраивание могут запретить уже после ready — даём окну на ошибку
+            setTimeout(()=>{ if(failCode!=null) done(false); else done(true); },2500);
+          },
+          onError:ev=>{ failCode=ev&&ev.data; setStatus('YouTube: '+errText(failCode)); done(false); },
+          onStateChange:ev=>{
+            if(ev.data===YT.PlayerState.ENDED) cancelAnimationFrame(rafId);
+            // пока играет — выбор скрыт, на паузе/конце — снова виден
+            if(ev.data===YT.PlayerState.PLAYING){ $('videoPick').hidden=true; $('lyricsPick').hidden=true; }
+            if(ev.data===YT.PlayerState.PAUSED||ev.data===YT.PlayerState.ENDED){
+              if(videoOptions.length) $('videoPick').hidden=false;
+              if(lyricOptions.length) $('lyricsPick').hidden=false;
+            }
+          }
+        }});
+      // страховка: если ни ready ни error за 20с — считаем неудачей
+      setTimeout(()=>done(false),20000);
+    }catch(e){ resolve(false); }
+  }));
+}
+
+async function searchLyrics(query){
+  // Напрямую в LRCLIB (у него открыт CORS), до 3 попыток — иногда отвечает 503.
+  let last='?';
+  for(let i=0;i<3;i++){
+    try{
+      const r=await fetch('https://lrclib.net/api/search?q='+encodeURIComponent(query),{signal:AbortSignal.timeout(15000)});
+      if(!r.ok) throw new Error('LRCLIB недоступен ('+r.status+')');
+      const data=await r.json();
+      const synced=(data||[]).filter(d=>d.syncedLyrics && d.syncedLyrics.trim());
+      return {all:data||[], synced};
+    }catch(e){ last=e.message||e; await new Promise(res=>setTimeout(res,1000)); }
+  }
+  throw new Error('LRCLIB недоступен после 3 попыток: '+last);
+}
+function pickLyric(synced, query){
+  if(!synced.length) return null;
+  const ql=query.toLowerCase();
+  const scored=synced.map(d=>{
+    const s=((d.artistName||'')+' '+(d.trackName||'')).toLowerCase();
+    let sc=0; ql.split(/\s+/).forEach(w=>{ if(w.length>2&&s.includes(w)) sc+=1; });
+    if(d.instrumental) sc-=10;
+    return {d,sc};
+  }).sort((a,b)=>b.sc-a.sc);
+  return scored[0].d;
+}
+function parseLRC(synced){
+  const out=[];
+  for(const raw of synced.split('\n')){
+    const m=raw.match(/\[(\d+):(\d+(?:\.\d+)?)\]\s?(.*)/);
+    if(!m) continue;
+    const t=(+m[1])*60+(+m[2]);
+    out.push({t, text:(m[3]||'').trim()});
+  }
+  out.sort((a,b)=>a.t-b.t);
+  return out.map((ln,i)=>{
+    const next=out[i+1];
+    const em=[...ln.text.matchAll(/<(\d+):(\d+(?:\.\d+)?)>\s*([^<]*)/g)];
+    let words, enhanced=false;
+    if(em.length){
+      enhanced=true;
+      words=em.map(x=>({w:x[3], t:(+x[1])*60+(+x[2])}));
+    }else{
+      const parts=ln.text.split(/\s+/).filter(Boolean);
+      const end=next?next.t:ln.t+3;
+      const span=Math.max(.3,end-ln.t);
+      const weights=parts.map(w=>w.length+1);
+      const sum=weights.reduce((a,b)=>a+b,0)||1;
+      let acc=ln.t; words=[];
+      parts.forEach((w,k)=>{ const wt=acc; acc+=span*weights[k]/sum; words.push({w, t:wt}); });
+    }
+    return {...ln, words, enhanced};
+  });
+}
+
+const PIPED=['https://pipedapi.reallyaweso.me','https://pipedapi.leptons.xyz','https://pipedapi.stdout.blog','https://pipedapi.adminforge.de'];
+const INVID=['https://inv.nadeko.net','https://iv.melmac.space','https://invidious.nerdvpn.de'];
+// URL воркера после деплоя (Cloudflare Workers → Deploy → вставить сюда). Без него поиск музыки не работает.
+const WORKER_BASE='__WORKER_URL__';
+async function searchVideo(query, log){
+  // 1) наш Cloudflare Worker (тот же код, что был в server.py)
+  if(WORKER_BASE&&!WORKER_BASE.includes('__WORKER')){
+    try{
+      log&&log('поиск музыки: воркер…');
+      const r=await fetch(WORKER_BASE+'/api/ytsearch?q='+encodeURIComponent(query+' audio'),{signal:AbortSignal.timeout(20000)});
+      if(r.ok){
+        const j=await r.json();
+        if(j.items&&j.items.length) return j.items;
+        log&&log('воркер → пусто');
+      } else log&&log('воркер → '+r.status);
+    }catch(e){ log&&log('воркер → нет связи'); }
+  } else log&&log('воркер не настроен (впиши URL в WORKER_BASE)');
+  for(const base of PIPED){
+    try{
+      log&&log('поиск музыки: '+base.replace('https://','')+'…');
+      const r=await fetch(base+'/search?q='+encodeURIComponent(query+' audio')+'&filter=videos',{signal:AbortSignal.timeout(10000)});
+      if(!r.ok){ log&&log(base+' → '+r.status); continue; }
+      const j=await r.json();
+      const items=(j.items||j||[]).filter(v=>v.url);
+      if(items.length) return items.slice(0,8).map(v=>({
+        id:(v.url.match(/v=([^&]+)/)||[])[1]||String(v.url).split('/').pop(),
+        title:v.title||'', channel:v.uploaderName||v.uploader||''
+      })).filter(v=>v.id);
+      log&&log(base+' → пусто');
+    }catch(e){ log&&log(base+' → недоступен'); }
+  }
+  for(const base of INVID){
+    try{
+      log&&log('поиск музыки: '+base.replace('https://','')+'…');
+      const r=await fetch(base+'/api/v1/search?q='+encodeURIComponent(query)+'&type=video&page=1',{signal:AbortSignal.timeout(10000)});
+      if(!r.ok){ log&&log(base+' → '+r.status); continue; }
+      const j=await r.json();
+      if(Array.isArray(j)&&j.length) return j.slice(0,8).map(v=>({id:v.videoId,title:v.title||'',channel:(v.author||'')}));
+      log&&log(base+' → пусто');
+    }catch(e){ log&&log(base+' → недоступен'); }
+  }
+  return [];
+}
+function parseVideoId(s){
+  s=(s||'').trim(); if(!s) return null;
+  let m=s.match(/[?&]v=([\w-]{6,})/)||s.match(/youtu\.be\/([\w-]{6,})/)||s.match(/\/embed\/([\w-]{6,})/)||s.match(/\/shorts\/([\w-]{6,})/);
+  if(m) return m[1];
+  if(/^[\w-]{6,}$/.test(s)) return s;
+  return null;
+}
+async function titleFromVideo(id){
+  try{
+    const r=await fetch('https://noembed.com/embed?url='+encodeURIComponent('https://www.youtube.com/watch?v='+id),{signal:AbortSignal.timeout(8000)});
+    if(!r.ok) return null;
+    const j=await r.json();
+    return j.title||null;
+  }catch(e){ return null; }
+}
+const JUNK_RE=/cover|кавер|acoustic|акустик|unplugged|remix|ремикс|sped\s?up|slowed|nightcore|8d( |$)|reaction|реакци|обзор|разбор|урок|lesson|tutorial|интервью|interview|перевод\b|parody|пародия|live|концерт|сборник|топ-?\d|top ?\d|\bhour\b|часа/i;
+function isJunk(v){
+  return JUNK_RE.test((v.title||'')+' '+(v.channel||''));
+}
+function words3(s){ return String(s||'').toLowerCase().split(/[^a-zа-яё0-9]+/i).filter(w=>w.length>2); }
+// годные: не мусор, длина в пределах ±30с от трека, в названии есть общие слова с треком
+function suitableVideos(list, trackTitle, trackDur){
+  const tw=new Set(words3(trackTitle));
+  const ok=list.filter(v=>{
+    if(v.junk) return false;
+    if(v.duration&&(v.duration<40||v.duration>900)) return false;
+    if(trackDur&&v.duration&&Math.abs(v.duration-trackDur)>30) return false;
+    if(tw.size){
+      const vw=words3(v.title+' '+(v.channel||''));
+      if(!vw.some(w=>tw.has(w))) return false;
+    }
+    return true;
+  });
+  return ok;
+}
+function rankVideos(videos, trackDur){
+  return videos.map(v=>{
+    const t=(v.title||'').toLowerCase(), c=(v.channel||'').toLowerCase();
+    let s=0, junk=isJunk(v);
+    if(junk) s-=10;
+    if(c.endsWith('- topic')||c.endsWith(' topic')||c.includes('topic')) s+=10;
+    if(t.includes('official audio')) s+=6;
+    else if(t.includes(' audio')) s+=4;
+    if(t.includes('lyric')&&!junk) s+=2;
+    if(t.includes('official video')||t.includes('official music video')||t.includes(' m/v')||t.includes(' mv')) s-=6;
+    if(t.includes('live')) s-=3;
+    if(t.includes('acoustic')||t.includes('remix')) s-=4;
+    if(v.duration&&trackDur){
+      const d=Math.abs(v.duration-trackDur);
+      if(d<=8) s+=5; else if(d<=20) s+=0; else s-=8;
+    }
+    if(v.duration&&(v.duration<40||v.duration>900)) s-=12;
+    return {...v,s,junk};
+  }).sort((a,b)=>b.s-a.s);
+}
+
+function renderLyrics(){
+  lyricsEl.innerHTML='';
+  activeIdx=-1;
+  lines.forEach((ln,i)=>{
+    const div=document.createElement('div');
+    div.className='line'; div.dataset.i=i;
+    ln.words.forEach(wd=>{
+      const s=document.createElement('span'); s.className='w'; s.textContent=wd.w; div.appendChild(s);
+    });
+    if(!ln.words.length) div.innerHTML='&nbsp;';
+    div.onclick=()=>{ if(player&&player.seekTo){ player.seekTo(Math.max(0,ln.t-0.05),true); if(player.playVideo) player.playVideo(); } };
+    lyricsEl.appendChild(div);
+  });
+}
+function updateActive(t){
+  if(!lines.length) return;
+  let idx=-1;
+  for(let i=0;i<lines.length;i++) if(lines[i].t<=t) idx=i;
+  if(idx!==activeIdx){
+    activeIdx=idx;
+    const kids=lyricsEl.children;
+    for(let i=0;i<kids.length;i++){
+      kids[i].classList.toggle('active',i===idx);
+      kids[i].classList.toggle('done',i<idx);
+    }
+    if(idx>=0&&kids[idx]) kids[idx].scrollIntoView({block:'start',behavior:'smooth'});
+  }
+  if(document.body.dataset.mode==='words'&&idx>=0){
+    const ln=lines[idx], kids=lyricsEl.children[idx].children;
+    ln.words.forEach((wd,k)=>{
+      const el=kids[k]; if(!el) return;
+      el.classList.toggle('sung', t>=wd.t-0.05);
+    });
+  }
+  if(duration) fill.style.width=(100*Math.min(1,t/duration))+'%';
+  timeEl.textContent=fmt(t)+' / '+fmt(duration)+' • сдвиг '+offset.toFixed(1)+'с';
+}
+function loop(){
+  cancelAnimationFrame(rafId);
+  const step=()=>{
+    if(player&&player.getCurrentTime){
+      try{
+        if(!duration&&player.getDuration) duration=player.getDuration()||0;
+        updateActive(player.getCurrentTime()+offset);
+      }catch(e){}
+    }
+    rafId=requestAnimationFrame(step);
+  };
+  step();
+}
+function enableControls(on){
+  [playBtn,minusBtn,plusBtn,modeBtn].forEach(b=>b.disabled=!on);
+}
+
+let lyricOptions=[], videoOptions=[], selVideoId=null, selLyricId=null, videoFallback=false;
+
+async function connectVideo(list){
+  for(const c of list.slice(0,8)){
+    setStatus('Подключаю: '+((c.channel?c.channel+' — ':'')+(c.title||c.id)));
+    const ok=await createPlayer(c.id);
+    if(ok){ currentVideo=c.id; selVideoId=c.id; paintPicks(); return true; }
+  }
+  return false;
+}
+function fmtDur(s){ if(!s&&s!==0) return '—'; s=Math.round(s); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function paintPicks(){
+  document.querySelectorAll('#videoList .opt').forEach(b=>b.classList.toggle('sel',b.dataset.id===selVideoId));
+  document.querySelectorAll('#lyricsList .opt').forEach(b=>b.classList.toggle('sel',b.dataset.id===String(selLyricId)));
+}
+function renderVideoPicker(){
+  const box=$('videoList'); box.innerHTML='';
+  if(videoFallback){
+    const n=document.createElement('div');
+    n.className='note';
+    n.textContent='Точно подходящего не нашлось (всё — каверы или другая длина). Вот ближайшие — лучше вставь ссылку на оригинал в поле поиска.';
+    box.appendChild(n);
+  }
+  videoOptions.forEach(v=>{
+    const b=document.createElement('button');
+    b.className='opt'+(v.id===selVideoId?' sel':'');
+    b.dataset.id=v.id;
+    const badges=[];
+    if((v.channel||'').toLowerCase().includes('topic')) badges.push('<span class="badge">AUDIO</span>');
+    b.innerHTML='<img loading="lazy" src="https://i.ytimg.com/vi/'+v.id+'/mqdefault.jpg" alt="">'+
+      '<span><span class="t">'+escapeHtml(v.title||v.id)+'</span>'+
+      '<span class="c" style="display:block">'+escapeHtml(v.channel||'')+' • '+fmtDur(v.duration)+'</span>'+
+      (badges.length?'<span class="badges">'+badges.join('')+'</span>':'')+'</span>';
+    b.onclick=async ()=>{
+      setStatus('Подключаю выбранное видео…');
+      const ok=await createPlayer(v.id);
+      if(ok){ currentVideo=v.id; selVideoId=v.id; paintPicks(); setStatus(''); }
+      else setStatus('Это видео не встраивается. Выбери другое.');
+    };
+    box.appendChild(b);
+  });
+  $('videoPick').hidden=!videoOptions.length;
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function applyLyric(d){
+  lines=parseLRC(d.syncedLyrics);
+  enhancedMode=lines.some(l=>l.enhanced);
+  selLyricId=d.id;
+  titleEl.textContent=d.trackName||'';
+  artistEl.textContent=d.artistName||'';
+  syncLabel.textContent='синхронизация: '+(enhancedMode?'честная пословная':'строки + авто-интерполяция');
+  if(d.instrumental) msgEl.innerHTML='<div class="err">Это инструментал — текста нет.</div>';
+  renderLyrics(); paintPicks();
+}
+function renderLyricPicker(query){
+  const box=$('lyricsList'); box.innerHTML='';
+  lyricOptions.slice(0,8).forEach(d=>{
+    const b=document.createElement('button');
+    b.className='opt'+(d.id===selLyricId?' sel':'');
+    b.dataset.id=String(d.id);
+    b.innerHTML='<span><span class="t">'+escapeHtml((d.artistName||'')+' — '+(d.trackName||''))+'</span>'+
+      '<span class="c" style="display:block">'+fmtDur(d.duration)+(d.hasWordSync?' • пословная':'')+'</span></span>';
+    b.onclick=()=>{ applyLyric(d); setStatus('Текст заменён. Видео то же.'); };
+    box.appendChild(b);
+  });
+  $('lyricsPick').hidden=!lyricOptions.length;
+}
+
+async function loadLyrics(query){
+  const lr=await searchLyrics(query);
+  if(!lr.synced.length){
+    titleEl.textContent=query; artistEl.textContent='ничего не найдено';
+    lyricsEl.innerHTML='';
+    msgEl.innerHTML='<div class="err">Синхронизированного текста для этого трека нет (в LRCLIB есть '+lr.all.length+' записей, но все без таймингов). Попробуй уточнить запрос: «артист — название».</div>';
+    setStatus('Текст не найден.');
+    return false;
+  }
+  const best=pickLyric(lr.synced, query);
+  lyricOptions=lr.synced.slice().sort((a,b)=>scoreLyric(b,query)-scoreLyric(a,query));
+  applyLyric(best);
+  renderLyricPicker();
+  return true;
+}
+function scoreLyric(d, query){
+  const s=((d.artistName||'')+' '+(d.trackName||'')).toLowerCase();
+  let sc=0; String(query).toLowerCase().split(/\s+/).forEach(w=>{ if(w.length>2&&s.includes(w)) sc+=1; });
+  if(d.instrumental) sc-=10;
+  return sc;
+}
+
+async function runSearch(){
+  const input=qInput.value.trim();
+  msgEl.innerHTML='';
+  $('videoPick').hidden=true; $('lyricsPick').hidden=true;
+  selVideoId=null; selLyricId=null; videoOptions=[]; lyricOptions=[]; videoFallback=false;
+  if(!input){ setStatus('Введи название песни или ссылку YouTube.'); return; }
+  goBtn.disabled=true;
+  lyricsEl.innerHTML=''; setStatus('Ищу…');
+  try{
+    const directId=parseVideoId(input);
+    if(directId){
+      // вставили ссылку: подключаем видео, название узнаём сами, текст ищем по нему
+      setStatus('Подключаю видео…');
+      const ok=await createPlayer(directId);
+      if(!ok){
+        msgEl.innerHTML='<div class="err">Это видео не воспроизводится здесь (владелец мог запретить встраивание). Попробуй другую ссылку — лучше с канала «Artist — Topic».</div>';
+        goBtn.disabled=false; return;
+      }
+      currentVideo=directId; selVideoId=directId;
+      setStatus('Видео подключено. Ищу текст…');
+      const vtitle=await titleFromVideo(directId);
+      videoOptions=[{id:directId,title:vtitle||directId,channel:'',s:0}];
+      renderVideoPicker();
+      const okLyr=await loadLyrics(vtitle||directId);
+      setStatus(okLyr?'':'Видео играет, а текст не нашёлся. Впиши название песни словами и нажми «Найти» — видео останется.');
+      goBtn.disabled=false; return;
+    }
+    setStatus('Ищу текст в LRCLIB…');
+    const lrP=searchLyrics(input);
+    const vidsP=searchVideo(input, s=>setStatus(s));
+    const lr=await lrP;
+    if(!lr.synced.length){
+      titleEl.textContent=input; artistEl.textContent='ничего не найдено';
+      lyricsEl.innerHTML='';
+      msgEl.innerHTML='<div class="err">Синхронизированного текста для этого трека нет (в LRCLIB есть '+lr.all.length+' записей, но все без таймингов). Попробуй уточнить запрос: «артист — название».</div>';
+      setStatus('Текст не найден.'); goBtn.disabled=false; return;
+    }
+    const best=pickLyric(lr.synced, input);
+    lyricOptions=lr.synced.slice().sort((a,b)=>scoreLyric(b,input)-scoreLyric(a,input));
+    applyLyric(best);
+    renderLyricPicker();
+    setStatus('Текст найден ('+lines.length+' строк). Ищу музыку…');
+
+    const vids=await vidsP;
+    candidates=rankVideos(vids, best.duration);
+    const shown=suitableVideos(candidates, (best.artistName||'')+' '+(best.trackName||''), best.duration);
+    videoFallback=!shown.length&&candidates.length>0;
+    videoOptions=shown.length?shown:candidates.slice(0,3);
+    renderVideoPicker();
+    if(!videoOptions.length){
+      setStatus('Текст есть, а музыка не нашлась.');
+      msgEl.innerHTML='<div class="err">Текст найден ('+lines.length+' строк), а музыка не нашлась. Вставь ссылку на YouTube прямо в это же поле и нажми «Найти».</div>';
+      goBtn.disabled=false; return;
+    }
+    const ok=await connectVideo(videoOptions);
+    if(!ok){
+      msgEl.innerHTML='<div class="err">Подходящие видео запретили встраивание. Выбери другое из списка ниже или вставь ссылку на оригинал.</div>';
+      setStatus('Видео недоступно для встраивания — выбери другое ниже.'); goBtn.disabled=false; return;
+    }
+    setStatus('');
+  }catch(e){
+    msgEl.innerHTML='<div class="err">Ошибка: '+String(e.message||e)+'</div>';
+    setStatus('Ошибка поиска.');
+  }
+  goBtn.disabled=false;
+}
+goBtn.onclick=runSearch;
+qInput.addEventListener('keydown',e=>{ if(e.key==='Enter') runSearch(); });
+playBtn.onclick=()=>{
+  if(!player) return;
+  const st=player.getPlayerState&&player.getPlayerState();
+  if(st===YT.PlayerState.PLAYING) player.pauseVideo(); else player.playVideo();
+};
+minusBtn.onclick=()=>{ offset-=0.5; };
+plusBtn.onclick=()=>{ offset+=0.5; };
+modeBtn.onclick=()=>{
+  document.body.dataset.mode=document.body.dataset.mode==='words'?'lines':'words';
+  modeLabel.textContent='режим: '+(document.body.dataset.mode==='words'?'слова':'строки');
+};
+bar.onclick=e=>{
+  if(!player||!duration) return;
+  const r=bar.getBoundingClientRect();
+  player.seekTo(duration*Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),true);
+};
+</script>
+</body>
+</html>
