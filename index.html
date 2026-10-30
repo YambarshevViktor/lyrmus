@@ -287,6 +287,7 @@ function renderLyrics(){
       const s=document.createElement('span'); s.className='w'; s.textContent=wd.w; div.appendChild(s);
     });
     if(!ln.words.length) div.innerHTML='&nbsp;';
+    if(ln.tr){ const tr=document.createElement('div'); tr.className='tr'; tr.textContent=ln.tr; div.appendChild(tr); }
     div.onclick=()=>{ if(player&&player.seekTo){ player.seekTo(Math.max(0,ln.t-0.05),true); if(player.playVideo) player.playVideo(); } };
     lyricsEl.appendChild(div);
   });
@@ -375,6 +376,32 @@ function renderVideoPicker(){
   $('videoPick').hidden=!videoOptions.length;
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const trCache=new Map(); // ключ: id версии текста → массив переводов
+function lineText(ln){ return ln.words.map(w=>w.w).join(' '); }
+function needsTranslation(){
+  const text=lines.map(lineText).join('\n');
+  const letters=text.match(/[a-zA-Zа-яА-ЯёЁ]/g)||[];
+  if(letters.length<20) return false;
+  const lat=(text.match(/[a-zA-Z]/g)||[]).length;
+  return lat/letters.length>0.7; // переводим только явно не-русское
+}
+async function translateLines(key, myLines){
+  try{
+    const r=await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sl:'auto',tl:'ru',q:myLines.map(lineText)}),signal:AbortSignal.timeout(60000)});
+    if(!r.ok) return;
+    const j=await r.json();
+    if(!j.tr||!Array.isArray(j.tr)) return;
+    trCache.set(key, j.tr);
+    if(lines!==myLines) return; // пока переводилось, текст уже сменили
+    j.tr.forEach((t,i)=>{ if(lines[i]) lines[i].tr=(t&&String(t).trim())||null; });
+    lines.forEach((ln,i)=>{
+      const div=lyricsEl.querySelector('.line[data-i="'+i+'"]');
+      if(!div||!ln.tr||div.querySelector('.tr')) return;
+      const d=document.createElement('div'); d.className='tr'; d.textContent=ln.tr; div.appendChild(d);
+    });
+  }catch(e){ /* без перевода страница работает как раньше */ }
+}
 function applyLyric(d){
   lines=parseLRC(d.syncedLyrics);
   enhancedMode=lines.some(l=>l.enhanced);
@@ -383,7 +410,10 @@ function applyLyric(d){
   artistEl.textContent=d.artistName||'';
   syncLabel.textContent='синхронизация: '+(enhancedMode?'честная пословная':'строки + авто-интерполяция');
   if(d.instrumental) msgEl.innerHTML='<div class="err">Это инструментал — текста нет.</div>';
+  const key=(d.id||'')+':'+lines.length;
+  if(trCache.has(key)){ const arr=trCache.get(key); arr.forEach((t,i)=>{ if(lines[i]) lines[i].tr=t||null; }); }
   renderLyrics(); paintPicks();
+  if(!trCache.has(key)&&needsTranslation()) translateLines(key, lines);
 }
 function renderLyricPicker(query){
   const box=$('lyricsList'); box.innerHTML='';
